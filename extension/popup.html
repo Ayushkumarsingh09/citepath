@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>CitePath</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        width: 320px;
+        margin: 0;
+        padding: 16px;
+        background: #0f1419;
+        color: #e8eef4;
+      }
+      button {
+        width: 100%;
+        margin-top: 8px;
+        padding: 10px;
+        border: 0;
+        border-radius: 10px;
+        background: #1a9b8e;
+        color: white;
+        cursor: pointer;
+      }
+      .muted {
+        color: #8b9aab;
+        font-size: 12px;
+      }
+      .item {
+        border: 1px solid #2a3441;
+        border-radius: 10px;
+        padding: 10px;
+        margin-top: 8px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <strong>CitePath</strong>
+    <p class="muted">Uses your CitePath app session + Reddit browser login. No passwords stored.</p>
+    <button id="login">Open auth callback</button>
+    <button id="refresh">Refresh queue</button>
+    <div id="list"></div>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

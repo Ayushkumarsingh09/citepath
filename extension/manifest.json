@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "CitePath for Reddit",
+  "description": "Review approved CitePath drafts and assist posting from your logged-in Reddit session. Never asks for Reddit passwords.",
+  "version": "0.1.0",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://localhost:3000/*", "https://*.citepath.local/*", "https://www.reddit.com/*", "https://old.reddit.com/*"],
+  "action": {
+    "default_title": "CitePath",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.reddit.com/*", "https://old.reddit.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

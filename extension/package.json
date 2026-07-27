@@ -1,0 +1,8 @@
+{
+  "name": "citepath-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"console.log('Load unpacked from extension/ — MV3, no bundler required for MVP')\""
+  }
+}
