@@ -1,0 +1,29 @@
+{
+  "name": "citepath",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @citepath/web dev",
+    "dev:worker": "pnpm --filter @citepath/worker dev",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @citepath/db generate",
+    "db:migrate": "pnpm --filter @citepath/db migrate",
+    "db:migrate:deploy": "pnpm --filter @citepath/db exec prisma migrate deploy",
+    "db:push": "pnpm --filter @citepath/db push",
+    "db:seed": "pnpm --filter @citepath/db seed",
+    "lint": "pnpm -r lint",
+    "test": "vitest run --config vitest.config.mjs",
+    "test:integration": "pnpm exec vitest run --config vitest.integration.config.mjs",
+    "test:e2e": "pnpm exec playwright test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.1",
+    "bcryptjs": "^2.4.3",
+    "vitest": "^3.0.9",
+    "wait-on": "^8.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
