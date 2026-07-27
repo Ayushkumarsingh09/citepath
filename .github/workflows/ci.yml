@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Dependency audit (informational)
+        run: pnpm audit --prod || true
+
+  build:
+    runs-on: ubuntu-latest
+    needs: unit
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: citepath
+          POSTGRES_PASSWORD: citepath
+          POSTGRES_DB: citepath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U citepath"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://citepath:citepath@localhost:5432/citepath
+      DEMO_MODE: "true"
+      SESSION_SECRET: ci-session-secret
+      APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - name: Apply migrations to fresh DB
+        run: pnpm db:migrate:deploy
+      - run: pnpm db:seed
+      - name: Tenant isolation
+        run: pnpm test:integration
+      - run: pnpm --filter @citepath/web build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: citepath
+          POSTGRES_PASSWORD: citepath
+          POSTGRES_DB: citepath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U citepath"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://citepath:citepath@localhost:5432/citepath
+      DEMO_MODE: "true"
+      SESSION_SECRET: ci-session-secret
+      APP_URL: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm --filter @citepath/db exec prisma migrate deploy
+      - run: pnpm db:seed
+      - run: pnpm --filter @citepath/web build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm --filter @citepath/web start &
+      - run: npx wait-on http://localhost:3000/health --timeout 60000
+      - run: pnpm exec playwright test
