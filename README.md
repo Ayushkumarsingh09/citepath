@@ -8,7 +8,7 @@ CitePath helps brands discover Reddit threads that AI systems already trust, dra
 
 ## Live demo
 
-**https://citepath.vercel.app**
+**https://citepath-two.vercel.app**
 
 > Demo credentials (seed data): `demo@citepath.local` / `demo-demo-demo`  
 > Local/demo mode may use labeled synthetic Reddit posts when live providers are unavailable. Set real `DATABASE_URL`, `AI_PROVIDER_API_KEY`, and `STRIPE_*` for full production behavior.
@@ -85,7 +85,7 @@ pnpm dev:worker          # optional queue worker
 ## Agent API (sample)
 
 ```bash
-curl -H "x-api-key: cp_your_key" https://citepath.vercel.app/agent/me
+curl -H "x-api-key: cp_your_key" https://citepath-two.vercel.app/agent/me
 ```
 
 Create keys in **Settings → API Keys** (shown once).
