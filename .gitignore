@@ -15,3 +15,5 @@ apps/web/.next
 packages/db/generated
 *.tsbuildinfo
 .vercel
+
+apps/web/pnpm-lock.yaml
