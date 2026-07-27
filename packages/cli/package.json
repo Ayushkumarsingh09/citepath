@@ -1,0 +1,13 @@
+{
+  "name": "@citepath/cli",
+  "version": "0.1.0",
+  "private": false,
+  "bin": {
+    "citepath": "./bin/citepath.mjs",
+    "cp": "./bin/citepath.mjs"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node ./bin/citepath.mjs"
+  }
+}
