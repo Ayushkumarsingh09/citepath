@@ -1,0 +1,658 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceMode {
+  SOLO
+  TEAM
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum DraftStatus {
+  PENDING
+  QUEUED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DraftType {
+  WARMUP
+  PROMOTIONAL
+}
+
+enum ScanStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum PlanTier {
+  TRIAL
+  STARTER
+  GROWTH
+  PRO
+  AGENCY
+  ENTERPRISE
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum PublishingStatus {
+  QUEUED
+  CLAIMING
+  POSTING
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_PERMANENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  emailVerifiedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships      Membership[]
+  sessions         Session[]
+  ownedInvites     Invitation[]      @relation("InvitedBy")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  assignedCampaigns CampaignAssignment[]
+  draftsCreated    Draft[]           @relation("DraftCreator")
+  extensionActivities ExtensionActivity[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  userAgent String?
+  ip        String?
+}
+
+model Workspace {
+  id        String        @id @default(cuid())
+  name      String
+  mode      WorkspaceMode
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deletedAt DateTime?
+
+  memberships         Membership[]
+  invitations         Invitation[]
+  subscription        Subscription?
+  campaigns           Campaign[]
+  subreddits          WorkspaceSubreddit[]
+  redditAccounts      RedditAccount[]
+  settings            WorkspaceSettings?
+  scanRuns            ScanRun[]
+  brandMonitorBrands  BrandMonitorBrand[]
+  mentions            Mention[]
+  visibilityBrands    VisibilityBrand[]
+  aiPrompts           AIPrompt[]
+  visibilitySnapshots VisibilitySnapshot[]
+  apiKeys             ApiKey[]
+  integrations        Integration[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  jobs                JobRecord[]
+  extensionActivities ExtensionActivity[]
+}
+
+model Membership {
+  id          String     @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MemberRole @default(MEMBER)
+  createdAt   DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id          String           @id @default(cuid())
+  workspaceId String
+  email       String
+  role        MemberRole       @default(MEMBER)
+  tokenHash   String           @unique
+  status      InvitationStatus @default(PENDING)
+  invitedById String
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([workspaceId, email])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  workspaceId          String             @unique
+  plan                 PlanTier           @default(TRIAL)
+  status               SubscriptionStatus @default(TRIALING)
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  addonDraftBundles    Int                @default(0)
+  addonCampaigns       Int                @default(0)
+  addonMonitorDomains  Int                @default(0)
+  addonVisibilityPrompts Int              @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceSettings {
+  id                 String  @id @default(cuid())
+  workspaceId        String  @unique
+  relevanceThreshold Float   @default(0.5)
+  notifyDraftReady   Boolean @default(true)
+  notifyOpportunity  Boolean @default(true)
+  notifyMention      Boolean @default(true)
+  notifyPublish      Boolean @default(true)
+  notifyBilling      Boolean @default(true)
+  extensionPush      Boolean @default(true)
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  productName String?
+  productUrl  String?
+  description String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  advocates   Advocate[]
+  subreddits  CampaignSubreddit[]
+  documents   KnowledgeDocument[]
+  opportunities Opportunity[]
+  drafts      Draft[]
+  assignments CampaignAssignment[]
+
+  @@index([workspaceId, active])
+}
+
+model CampaignAssignment {
+  id         String @id @default(cuid())
+  campaignId String
+  userId     String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+}
+
+model Advocate {
+  id               String   @id @default(cuid())
+  campaignId       String
+  name             String
+  description      String?
+  role             String   @default("Regular User")
+  tone             String   @default("helpful")
+  expertise        String?
+  creativity       Float    @default(0.5)
+  verbosity        String   @default("medium")
+  writingGuidelines String?
+  preferredVocab   String?
+  avoidList        String?
+  productMentionPolicy String?
+  disclosureRequirements String?
+  dailyDraftAllocation Int  @default(5)
+  redditAccountId  String?  @unique
+  voiceGuidelines  String?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  redditAccount RedditAccount? @relation(fields: [redditAccountId], references: [id])
+  drafts        Draft[]
+
+  @@index([campaignId])
+}
+
+model RedditAccount {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  username        String
+  karma           Int       @default(0)
+  accountAgeDays  Int       @default(0)
+  verifiedEmail   Boolean   @default(false)
+  isMod           Boolean   @default(false)
+  warmupStartedAt DateTime  @default(now())
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  advocate  Advocate?
+
+  @@unique([workspaceId, username])
+}
+
+model WorkspaceSubreddit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  title       String?
+  subscribers Int?
+  minKarma    Int      @default(0)
+  active      Boolean  @default(true)
+  rulesJson   Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns CampaignSubreddit[]
+
+  @@unique([workspaceId, name])
+}
+
+model CampaignSubreddit {
+  id                    String @id @default(cuid())
+  campaignId            String
+  workspaceSubredditId  String
+  active                Boolean @default(true)
+
+  campaign            Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  workspaceSubreddit  WorkspaceSubreddit @relation(fields: [workspaceSubredditId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, workspaceSubredditId])
+}
+
+model KnowledgeDocument {
+  id          String   @id @default(cuid())
+  campaignId  String
+  title       String
+  sourceType  String
+  sourceUrl   String?
+  content     String
+  chunkCount  Int      @default(0)
+  status      String   @default("ready")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  chunks   KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id         String @id @default(cuid())
+  documentId String
+  ordinal    Int
+  content    String
+  // embedding stored separately when pgvector enabled; JSON float array for portable MVP
+  embedding  Json?
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model RedditPost {
+  id            String   @id @default(cuid())
+  externalId    String   @unique
+  subreddit     String
+  title         String
+  body          String?
+  author        String?
+  url           String
+  permalink     String
+  score         Int      @default(0)
+  numComments   Int      @default(0)
+  createdUtc    DateTime
+  ingestedAt    DateTime @default(now())
+  isDemo        Boolean  @default(false)
+
+  opportunities Opportunity[]
+}
+
+model Opportunity {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  campaignId       String
+  postId           String
+  semanticRelevance Float
+  intentScore      Float
+  productFit       Float
+  freshness        Float
+  engagementPotential Float
+  geoPotential     Float
+  promotionalRisk  Float
+  finalScore       Float
+  scoreExplain     Json?
+  status           String   @default("open")
+  createdAt        DateTime @default(now())
+
+  campaign Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  post     RedditPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  drafts   Draft[]
+
+  @@unique([campaignId, postId])
+  @@index([workspaceId, finalScore])
+}
+
+model Draft {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  campaignId    String
+  advocateId    String?
+  opportunityId String?
+  createdById   String?
+  content       String
+  type          DraftType   @default(WARMUP)
+  status        DraftStatus @default(PENDING)
+  model         String?
+  promptVersion String?
+  isDemo        Boolean     @default(false)
+  publishedAt   DateTime?
+  redditCommentId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  advocate    Advocate?    @relation(fields: [advocateId], references: [id])
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+  createdBy   User?        @relation("DraftCreator", fields: [createdById], references: [id])
+  versions    DraftVersion[]
+  publishingJob PublishingJob?
+  published   PublishedContent?
+
+  @@index([workspaceId, status])
+  @@index([campaignId, status])
+}
+
+model DraftVersion {
+  id        String   @id @default(cuid())
+  draftId   String
+  content   String
+  source    String
+  model     String?
+  createdAt DateTime @default(now())
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model PublishingJob {
+  id          String           @id @default(cuid())
+  draftId     String           @unique
+  workspaceId String
+  status      PublishingStatus @default(QUEUED)
+  attempts    Int              @default(0)
+  lastError   String?
+  claimedBy   String?
+  claimedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model PublishedContent {
+  id              String   @id @default(cuid())
+  draftId         String   @unique
+  redditCommentId String?
+  permalink       String?
+  views           Int      @default(0)
+  upvotes         Int      @default(0)
+  score           Int      @default(0)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime @default(now())
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model ScanRun {
+  id              String     @id @default(cuid())
+  workspaceId     String
+  status          ScanStatus @default(QUEUED)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  durationMs      Int?
+  postsFound      Int        @default(0)
+  draftsGenerated Int        @default(0)
+  error           String?
+  createdAt       DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model BrandMonitorBrand {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  domain      String?
+  isCompetitor Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  mentions  Mention[]
+
+  @@index([workspaceId])
+}
+
+model Mention {
+  id          String    @id @default(cuid())
+  workspaceId String
+  brandId     String
+  title       String
+  url         String
+  subreddit   String?
+  sentiment   Sentiment @default(NEUTRAL)
+  detectedAt  DateTime  @default(now())
+  score       Int       @default(0)
+  snippet     String?
+  isDemo      Boolean   @default(false)
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brand     BrandMonitorBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, detectedAt])
+}
+
+model VisibilityBrand {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  isCompetitor Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AIPrompt {
+  id          String   @id @default(cuid())
+  workspaceId String
+  text        String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs      AIQueryRun[]
+
+  @@index([workspaceId])
+}
+
+model AIQueryRun {
+  id            String   @id @default(cuid())
+  promptId      String
+  engine        String
+  responseText  String
+  brandMentioned Boolean @default(false)
+  position      Int?
+  citationsJson Json?
+  ranAt         DateTime @default(now())
+  isDemo        Boolean  @default(false)
+
+  prompt AIPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId, ranAt])
+}
+
+model VisibilitySnapshot {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  engine        String
+  visibilityScore Float
+  mentionRate   Float
+  citationRate  Float
+  citationShare Float
+  shareOfVoice  Float
+  averagePosition Float?
+  componentsJson Json
+  capturedAt    DateTime @default(now())
+  isDemo        Boolean  @default(false)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, capturedAt])
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  name           String
+  keyPrefix      String
+  keyHash        String    @unique
+  creditsLimit   Int       @default(50)
+  creditsUsed    Int       @default(0)
+  creditsResetAt DateTime
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Integration {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  provider     String
+  configJson   Json
+  connectedAt  DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  type        String
+  title       String
+  body        String
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model ExtensionActivity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  type        String
+  payloadJson Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  userId      String?
+  action      String
+  entityType  String?
+  entityId    String?
+  metaJson    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+}
+
+model JobRecord {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  type        String
+  payloadJson Json
+  status      String   @default("queued")
+  attempts    Int      @default(0)
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
